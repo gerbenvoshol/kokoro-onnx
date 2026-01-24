@@ -31,6 +31,23 @@ A pure C implementation of Kokoro TTS using ONNX Runtime C API and espeak-ng.
 - CMake >= 3.15
 - C compiler (GCC, Clang, or MSVC)
 
+## Quick Start with Resources
+
+The easiest way to get started is to use the provided resource setup script:
+
+```bash
+cd c/resources
+./setup.sh
+```
+
+This will automatically:
+- Download the ONNX model (~300MB)
+- Download voice files (~80MB)
+- Convert voices to C format
+- Generate a demo WAV file
+
+See [resources/README.md](resources/README.md) for more details.
+
 ## Building
 
 ### Linux/macOS

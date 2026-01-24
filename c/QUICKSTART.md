@@ -2,6 +2,19 @@
 
 This guide will help you get started with the Kokoro C TTS library quickly.
 
+## Fastest Way to Get Started
+
+**Use the automated setup script:**
+
+```bash
+cd c/resources
+./setup.sh
+```
+
+This downloads everything you need and generates a demo. Skip to [Run Example](#run-example) after this completes.
+
+For manual setup, continue with the prerequisites below.
+
 ## Prerequisites
 
 ### Ubuntu/Debian
@@ -58,8 +71,17 @@ make
 
 ## Download Model Files
 
+**Option 1: Automated (Recommended)**
+
 ```bash
-cd c
+cd c/resources
+./setup.sh
+```
+
+**Option 2: Manual Download**
+
+```bash
+cd c/resources
 
 # Download ONNX model
 wget https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx
@@ -68,13 +90,14 @@ wget https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v
 wget https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin
 
 # Convert voices to C format
-python3 ../scripts/convert_voices.py voices-v1.0.bin voices-v1.0-c.bin
+python3 ../../scripts/convert_voices.py voices-v1.0.bin voices-v1.0-c.bin
 ```
 
 ## Run Example
 
 ```bash
-./build/kokoro_example kokoro-v1.0.onnx voices-v1.0-c.bin output.wav af_sarah "Hello from Kokoro C!"
+cd c/resources
+../build/kokoro_example kokoro-v1.0.onnx voices-v1.0-c.bin output.wav af_sarah "Hello from Kokoro C!"
 ```
 
 This will generate `output.wav` with synthesized speech.

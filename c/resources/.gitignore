@@ -1,0 +1,11 @@
+# Downloaded model files (too large for git)
+*.onnx
+*.bin
+
+# Generated audio files
+*.wav
+*.mp3
+
+# Temporary files
+*.tmp
+*.temp
