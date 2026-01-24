@@ -23,6 +23,7 @@ TTS with onnx runtime based on [Kokoro-TTS](https://huggingface.co/spaces/hexgra
 - Fast performance near real-time on macOS M1
 - Offer multiple voices
 - Lightweight: ~300MB (quantized: ~80MB)
+- **Pure C implementation available** - see [`c/`](c/) directory
 
 ## Setup
 
@@ -64,7 +65,20 @@ That's it! `audio.wav` should be created.
 
 ## Examples
 
-See [examples](examples)
+See [examples](examples) for Python examples.
+
+For C examples, see [c/README.md](c/README.md).
+
+## Pure C Implementation
+
+A pure C implementation is available in the [`c/`](c/) directory. This implementation:
+- Uses ONNX Runtime C API
+- Uses espeak-ng for phonemization
+- Has no Python dependencies
+- Provides a simple C API
+- Is cross-platform (Linux, macOS, Windows)
+
+See [c/README.md](c/README.md) for build instructions and usage examples.
 
 ## Voices
 
