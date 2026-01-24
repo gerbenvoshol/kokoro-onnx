@@ -62,6 +62,18 @@ This will install:
 - Headers: `/usr/local/include/kokoro.h`
 - CMake config: `/usr/local/lib/cmake/kokoro/`
 
+### Verification
+
+After building, you can run a simple compilation test:
+
+```bash
+make test
+# or
+./build/kokoro_compile_test
+```
+
+This verifies that the library compiles and links correctly without requiring model files.
+
 ## Usage
 
 ### Basic Example

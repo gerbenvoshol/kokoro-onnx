@@ -95,6 +95,10 @@ if(BUILD_EXAMPLES)
     add_executable(kokoro_example examples/example.c)
     target_link_libraries(kokoro_example PRIVATE kokoro)
     target_include_directories(kokoro_example PRIVATE include)
+    
+    add_executable(kokoro_compile_test examples/compile_test.c)
+    target_link_libraries(kokoro_compile_test PRIVATE kokoro)
+    target_include_directories(kokoro_compile_test PRIVATE include)
 endif()
 
 # Installation
