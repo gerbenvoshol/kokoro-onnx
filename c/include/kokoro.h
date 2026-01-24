@@ -15,6 +15,9 @@ extern "C" {
 #endif
 
 /* Constants */
+/* Maximum phoneme length (510) is determined by the model's context window size.
+ * The model can process up to 512 tokens, but we reserve 2 for padding tokens
+ * (one at the start and one at the end), leaving 510 for actual phonemes. */
 #define KOKORO_MAX_PHONEME_LENGTH 510
 #define KOKORO_SAMPLE_RATE 24000
 

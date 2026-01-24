@@ -27,16 +27,7 @@ def convert_voices(input_path, output_path):
     
     # Get embedding size from first voice
     first_voice_name, first_embedding = voice_items[0]
-    if len(first_embedding.shape) == 1:
-        # Single embedding
-        embedding_size = len(first_embedding)
-    else:
-        # Multiple embeddings (one per sequence length)
-        embedding_size = first_embedding.shape[1] if len(first_embedding.shape) > 1 else len(first_embedding)
-        # For simplicity, we'll flatten the embeddings
-        # In practice, the C code should handle multi-dimensional embeddings
-        print(f"Warning: Voice has shape {first_embedding.shape}, will flatten")
-        embedding_size = first_embedding.size
+    embedding_size = _get_embedding_size(first_embedding)
     
     print(f"Found {num_voices} voices")
     print(f"Embedding size: {embedding_size}")
@@ -50,18 +41,8 @@ def convert_voices(input_path, output_path):
         
         # Write each voice
         for voice_name, embedding in voice_items:
-            # Flatten if needed
-            if len(embedding.shape) > 1:
-                embedding = embedding.flatten()
-            
-            # Ensure we have the right size
-            if len(embedding) != embedding_size:
-                print(f"Warning: Voice {voice_name} has size {len(embedding)}, expected {embedding_size}")
-                # Pad or truncate
-                if len(embedding) < embedding_size:
-                    embedding = np.pad(embedding, (0, embedding_size - len(embedding)))
-                else:
-                    embedding = embedding[:embedding_size]
+            # Flatten and normalize embedding
+            embedding = _normalize_embedding(embedding, embedding_size, voice_name)
             
             # Write voice name
             voice_name_bytes = voice_name.encode('utf-8')
@@ -76,6 +57,34 @@ def convert_voices(input_path, output_path):
     
     print(f"Done! Converted {num_voices} voices to {output_path}")
     return 0
+
+
+def _get_embedding_size(embedding):
+    """Get embedding size, handling multi-dimensional embeddings."""
+    if len(embedding.shape) == 1:
+        return len(embedding)
+    else:
+        # Multiple embeddings (one per sequence length) - flatten
+        print(f"Warning: Voice has shape {embedding.shape}, will flatten")
+        return embedding.size
+
+
+def _normalize_embedding(embedding, expected_size, voice_name):
+    """Flatten and normalize embedding to expected size."""
+    # Flatten if needed
+    if len(embedding.shape) > 1:
+        embedding = embedding.flatten()
+    
+    # Ensure we have the right size
+    if len(embedding) != expected_size:
+        print(f"Warning: Voice {voice_name} has size {len(embedding)}, expected {expected_size}")
+        # Pad or truncate
+        if len(embedding) < expected_size:
+            embedding = np.pad(embedding, (0, expected_size - len(embedding)))
+        else:
+            embedding = embedding[:expected_size]
+    
+    return embedding
 
 
 def main():

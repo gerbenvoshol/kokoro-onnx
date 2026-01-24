@@ -94,17 +94,17 @@ static kokoro_error_t load_voices(kokoro_t* kokoro, const char* voices_path) {
      *   - embedding_size * 4 bytes: float embeddings
      */
     
-    uint32_t num_voices_u32;
-    uint32_t embedding_size_u32;
+    uint32_t num_voices;
+    uint32_t embedding_size;
     
-    if (fread(&num_voices_u32, sizeof(uint32_t), 1, fp) != 1 ||
-        fread(&embedding_size_u32, sizeof(uint32_t), 1, fp) != 1) {
+    if (fread(&num_voices, sizeof(uint32_t), 1, fp) != 1 ||
+        fread(&embedding_size, sizeof(uint32_t), 1, fp) != 1) {
         fclose(fp);
         return KOKORO_ERROR_INIT_FAILED;
     }
     
-    kokoro->num_voices = (size_t)num_voices_u32;
-    kokoro->embedding_size = (size_t)embedding_size_u32;
+    kokoro->num_voices = (size_t)num_voices;
+    kokoro->embedding_size = (size_t)embedding_size;
     
     if (kokoro->num_voices > MAX_VOICES) {
         fclose(fp);
@@ -153,17 +153,20 @@ kokoro_t* kokoro_init(
     const char* espeak_data_path
 ) {
     if (!model_path || !voices_path) {
+        fprintf(stderr, "Kokoro init error: model_path and voices_path are required\n");
         return NULL;
     }
     
     kokoro_t* kokoro = (kokoro_t*)calloc(1, sizeof(kokoro_t));
     if (!kokoro) {
+        fprintf(stderr, "Kokoro init error: Out of memory\n");
         return NULL;
     }
     
     /* Initialize ONNX Runtime */
     kokoro->ort = OrtGetApiBase()->GetApi(ORT_API_VERSION);
     if (!kokoro->ort) {
+        fprintf(stderr, "Kokoro init error: Failed to get ONNX Runtime API\n");
         free(kokoro);
         return NULL;
     }
@@ -352,8 +355,8 @@ kokoro_error_t kokoro_create_from_phonemes(
     tokens[num_tokens + 1] = 0;
     num_tokens += 2;
     
-    /* Select voice embedding based on sequence length */
-    float* style = &voice_embedding[num_tokens - 2];
+    /* Use the voice embedding directly (not indexed by sequence length) */
+    float* style = voice_embedding;
     
     /* Prepare ONNX Runtime inputs */
     OrtMemoryInfo* memory_info;
@@ -389,13 +392,13 @@ kokoro_error_t kokoro_create_from_phonemes(
         return KOKORO_ERROR_INFERENCE_FAILED;
     }
     
-    /* Create speed tensor */
-    int32_t speed_val = (int32_t)speed;
+    /* Create speed tensor (as float, not int) */
+    float speed_val = speed;
     int64_t speed_shape[] = {1};
     OrtValue* speed_tensor = NULL;
     status = kokoro->ort->CreateTensorWithDataAsOrtValue(
-        memory_info, &speed_val, sizeof(int32_t),
-        speed_shape, 1, ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32, &speed_tensor
+        memory_info, &speed_val, sizeof(float),
+        speed_shape, 1, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &speed_tensor
     );
     
     if (check_ort_status(kokoro->ort, status) != 0) {
