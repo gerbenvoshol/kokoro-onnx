@@ -11,6 +11,7 @@ A pure C implementation of Kokoro TTS using ONNX Runtime C API and espeak-ng.
 - Cross-platform support (Linux, macOS, Windows)
 - Low memory footprint
 - Thread-safe design
+- **Audiobook generation with natural pauses** (see [AUDIOBOOK.md](AUDIOBOOK.md))
 
 ## Dependencies
 
