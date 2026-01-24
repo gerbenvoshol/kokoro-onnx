@@ -142,6 +142,38 @@ Then run the example:
 
 This will generate `output.wav` containing the synthesized speech.
 
+### Audiobook Generation Example
+
+The audiobook example reads a text file and generates an audiobook with natural pauses at punctuation marks:
+
+```bash
+# Convert voices file first (if not already done)
+python3 ../scripts/convert_voices.py voices-v1.0.bin voices-v1.0-c.bin
+
+# Generate audiobook from text file
+./build/kokoro_audiobook kokoro-v1.0.onnx voices-v1.0-c.bin input.txt audiobook.wav af_sarah en-us 1.0
+```
+
+**Features:**
+- Automatic pauses at punctuation: `.` `!` `?` (500ms), `,` (250ms), `;` `:` (350ms)
+- Paragraph breaks (empty lines) add 800ms pause
+- Custom pause directives: `[PAUSE:1000]` for 1 second pause
+- Processes text sentence-by-sentence for efficient memory usage
+- Progress display during generation
+
+**Example text file:**
+```text
+This is the first sentence. This is the second sentence.
+
+This is a new paragraph, after a longer pause.
+
+You can add custom pauses like this: [PAUSE:2000]
+
+After the custom pause, the text continues normally.
+```
+
+See `examples/sample_story.txt` for a complete example.
+
 ## API Reference
 
 ### Initialization

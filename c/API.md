@@ -475,3 +475,53 @@ Supported language codes (partial list):
 - `hi` - Hindi
 
 See espeak-ng documentation for complete list.
+
+## Audiobook Generation
+
+For generating audiobooks from text files, see the audiobook example (`examples/audiobook.c`):
+
+```c
+// Pseudocode for audiobook generation
+audio_buffer_t buffer;
+audio_buffer_init(&buffer, KOKORO_SAMPLE_RATE);
+
+// Process text line by line
+while (reading_text) {
+    // Generate speech for sentence
+    kokoro_audio_t audio;
+    kokoro_create(kokoro, sentence, voice, speed, lang, &audio);
+    
+    // Append to buffer
+    audio_buffer_append(&buffer, audio.samples, audio.num_samples);
+    kokoro_audio_free(&audio);
+    
+    // Add pause based on punctuation
+    if (ends_with_period) {
+        audio_buffer_append_silence(&buffer, 500);  // 500ms
+    } else if (ends_with_comma) {
+        audio_buffer_append_silence(&buffer, 250);  // 250ms
+    }
+}
+
+// Write complete audiobook
+write_wav("audiobook.wav", &buffer);
+audio_buffer_free(&buffer);
+```
+
+### Custom Pause Directives
+
+The audiobook example supports custom pause directives in text:
+
+```text
+This is a sentence. [PAUSE:1000] After a 1 second pause.
+You can specify any duration in milliseconds. [PAUSE:500]
+```
+
+### Automatic Punctuation Pauses
+
+- Period, exclamation, question mark: 500ms
+- Comma: 250ms
+- Semicolon, colon: 350ms
+- Paragraph break (empty line): 800ms
+
+These can be customized by modifying the constants in `audiobook.c`.
