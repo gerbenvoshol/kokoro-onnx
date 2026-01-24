@@ -34,20 +34,35 @@ struct kokoro_t {
 
 /* Vocabulary from config.json - simplified to most common phonemes */
 static const struct {
+/* Vocabulary mapping: phoneme -> token_id
+ * These mappings are defined in src/kokoro_onnx/config.json in the main Python implementation.
+ * Token IDs correspond to the model's internal vocabulary. This is a simplified subset
+ * containing the most common IPA phonemes for English and other languages.
+ * Note: Some token IDs are non-consecutive due to the full vocabulary including
+ * additional characters not commonly used in standard phonemization.
+ */
+static const struct {
     const char* phoneme;
     int token_id;
 } VOCAB_MAP[] = {
+    /* Punctuation and separators */
     {";", 1}, {":", 2}, {",", 3}, {".", 4}, {"!", 5}, {"?", 6},
     {"—", 9}, {"…", 10}, {"\"", 11}, {"(", 12}, {")", 13},
     {""", 14}, {""", 15}, {" ", 16},
+    /* Basic Latin alphabet */
     {"a", 43}, {"b", 44}, {"c", 45}, {"d", 46}, {"e", 47}, {"f", 48},
     {"h", 50}, {"i", 51}, {"j", 52}, {"k", 53}, {"l", 54}, {"m", 55},
     {"n", 56}, {"o", 57}, {"p", 58}, {"q", 59}, {"r", 60}, {"s", 61},
     {"t", 62}, {"u", 63}, {"v", 64}, {"w", 65}, {"x", 66}, {"y", 67},
-    {"z", 68}, {"ɑ", 69}, {"ɐ", 70}, {"ɒ", 71}, {"æ", 72}, {"ɔ", 76},
-    {"ð", 81}, {"ə", 83}, {"ɛ", 86}, {"ɜ", 87}, {"ɡ", 92}, {"ɪ", 102},
-    {"ŋ", 112}, {"ɹ", 123}, {"ʃ", 131}, {"ʊ", 135}, {"ʌ", 138},
-    {"ʒ", 147}, {"ʔ", 148}, {"ˈ", 156}, {"ˌ", 157}, {"ː", 158},
+    {"z", 68},
+    /* IPA vowels */
+    {"ɑ", 69}, {"ɐ", 70}, {"ɒ", 71}, {"æ", 72}, {"ɔ", 76},
+    {"ə", 83}, {"ɛ", 86}, {"ɜ", 87}, {"ɪ", 102}, {"ʊ", 135}, {"ʌ", 138},
+    /* IPA consonants */
+    {"ð", 81}, {"ɡ", 92}, {"ŋ", 112}, {"ɹ", 123}, {"ʃ", 131},
+    {"ʒ", 147}, {"ʔ", 148},
+    /* IPA modifiers */
+    {"ˈ", 156}, {"ˌ", 157}, {"ː", 158},
     {NULL, 0}
 };
 
@@ -78,27 +93,31 @@ static void init_vocab(kokoro_t* kokoro) {
     }
 }
 
-/* Load voices from NPZ file (simplified - assumes direct binary format) */
+/* Voice file format constants */
+#define VOICE_FILE_UINT32_SIZE 4
+#define VOICE_FILE_FLOAT32_SIZE 4
+
+/* Load voices from binary file
+ * Binary format created by scripts/convert_voices.py:
+ * - Header:
+ *   - uint32_t (4 bytes): number of voices
+ *   - uint32_t (4 bytes): embedding size (floats per voice)
+ * - For each voice:
+ *   - uint32_t (4 bytes): voice name length in bytes
+ *   - char[] (variable): UTF-8 encoded voice name
+ *   - float32[] (embedding_size * 4 bytes): voice embedding
+ */
 static kokoro_error_t load_voices(kokoro_t* kokoro, const char* voices_path) {
     FILE* fp = fopen(voices_path, "rb");
     if (!fp) {
         return KOKORO_ERROR_FILE_NOT_FOUND;
     }
     
-    /* For simplicity, this assumes a custom binary format:
-     * - 4 bytes: number of voices
-     * - 4 bytes: embedding size
-     * - For each voice:
-     *   - 4 bytes: name length
-     *   - name_length bytes: voice name
-     *   - embedding_size * 4 bytes: float embeddings
-     */
-    
     uint32_t num_voices;
     uint32_t embedding_size;
     
-    if (fread(&num_voices, sizeof(uint32_t), 1, fp) != 1 ||
-        fread(&embedding_size, sizeof(uint32_t), 1, fp) != 1) {
+    if (fread(&num_voices, VOICE_FILE_UINT32_SIZE, 1, fp) != 1 ||
+        fread(&embedding_size, VOICE_FILE_UINT32_SIZE, 1, fp) != 1) {
         fclose(fp);
         return KOKORO_ERROR_INIT_FAILED;
     }
@@ -113,7 +132,7 @@ static kokoro_error_t load_voices(kokoro_t* kokoro, const char* voices_path) {
     
     for (size_t i = 0; i < kokoro->num_voices; i++) {
         uint32_t name_len;
-        if (fread(&name_len, sizeof(uint32_t), 1, fp) != 1) {
+        if (fread(&name_len, VOICE_FILE_UINT32_SIZE, 1, fp) != 1) {
             fclose(fp);
             return KOKORO_ERROR_INIT_FAILED;
         }
@@ -130,13 +149,13 @@ static kokoro_error_t load_voices(kokoro_t* kokoro, const char* voices_path) {
         }
         kokoro->voice_names[i][name_len] = '\0';
         
-        kokoro->voice_embeddings[i] = (float*)malloc(kokoro->embedding_size * sizeof(float));
+        kokoro->voice_embeddings[i] = (float*)malloc(kokoro->embedding_size * VOICE_FILE_FLOAT32_SIZE);
         if (!kokoro->voice_embeddings[i]) {
             fclose(fp);
             return KOKORO_ERROR_OUT_OF_MEMORY;
         }
         
-        if (fread(kokoro->voice_embeddings[i], sizeof(float), kokoro->embedding_size, fp) != kokoro->embedding_size) {
+        if (fread(kokoro->voice_embeddings[i], VOICE_FILE_FLOAT32_SIZE, kokoro->embedding_size, fp) != kokoro->embedding_size) {
             fclose(fp);
             return KOKORO_ERROR_INIT_FAILED;
         }
