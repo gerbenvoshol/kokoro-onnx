@@ -30,6 +30,10 @@ struct kokoro_t {
     
     /* espeak-ng initialized flag */
     int espeak_initialized;
+    
+    /* Model input names (detected at initialization) */
+    char* tokens_input_name;  /* "input_ids" or "tokens" */
+    int use_newer_model;      /* 1 if model uses "input_ids", 0 if "tokens" */
 };
 
 /* Vocabulary mapping: phoneme -> token_id
@@ -226,6 +230,47 @@ kokoro_t* kokoro_init(
         return NULL;
     }
     
+    /* Detect model input names */
+    size_t num_inputs;
+    status = kokoro->ort->SessionGetInputCount(kokoro->session, &num_inputs);
+    if (check_ort_status(kokoro->ort, status) != 0) {
+        kokoro->ort->ReleaseSession(kokoro->session);
+        kokoro->ort->ReleaseEnv(kokoro->env);
+        free(kokoro);
+        return NULL;
+    }
+    
+    /* Check if model uses "input_ids" (newer) or "tokens" (older) */
+    kokoro->use_newer_model = 0;
+    kokoro->tokens_input_name = NULL;
+    
+    for (size_t i = 0; i < num_inputs; i++) {
+        char* input_name;
+        status = kokoro->ort->SessionGetInputName(kokoro->session, i, kokoro->allocator, &input_name);
+        if (status == NULL && input_name != NULL) {
+            if (strcmp(input_name, "input_ids") == 0) {
+                kokoro->use_newer_model = 1;
+                kokoro->tokens_input_name = strdup("input_ids");
+                kokoro->ort->AllocatorFree(kokoro->allocator, input_name);
+                break;
+            } else if (strcmp(input_name, "tokens") == 0) {
+                kokoro->use_newer_model = 0;
+                kokoro->tokens_input_name = strdup("tokens");
+                kokoro->ort->AllocatorFree(kokoro->allocator, input_name);
+                break;
+            }
+            kokoro->ort->AllocatorFree(kokoro->allocator, input_name);
+        }
+    }
+    
+    if (!kokoro->tokens_input_name) {
+        fprintf(stderr, "Kokoro init error: Could not detect model input format\n");
+        kokoro->ort->ReleaseSession(kokoro->session);
+        kokoro->ort->ReleaseEnv(kokoro->env);
+        free(kokoro);
+        return NULL;
+    }
+    
     /* Initialize vocabulary */
     init_vocab(kokoro);
     
@@ -257,6 +302,11 @@ void kokoro_free(kokoro_t* kokoro) {
     for (size_t i = 0; i < kokoro->num_voices; i++) {
         free(kokoro->voice_names[i]);
         free(kokoro->voice_embeddings[i]);
+    }
+    
+    /* Free model input name */
+    if (kokoro->tokens_input_name) {
+        free(kokoro->tokens_input_name);
     }
     
     /* Free ONNX Runtime resources */
@@ -409,14 +459,25 @@ kokoro_error_t kokoro_create_from_phonemes(
         return KOKORO_ERROR_INFERENCE_FAILED;
     }
     
-    /* Create speed tensor (as float, not int) */
-    float speed_val = speed;
-    int64_t speed_shape[] = {1};
+    /* Create speed tensor - type depends on model version */
     OrtValue* speed_tensor = NULL;
-    status = kokoro->ort->CreateTensorWithDataAsOrtValue(
-        memory_info, &speed_val, sizeof(float),
-        speed_shape, 1, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &speed_tensor
-    );
+    if (kokoro->use_newer_model) {
+        /* Newer models use int32 for speed */
+        int32_t speed_val_int = (int32_t)speed;
+        int64_t speed_shape[] = {1};
+        status = kokoro->ort->CreateTensorWithDataAsOrtValue(
+            memory_info, &speed_val_int, sizeof(int32_t),
+            speed_shape, 1, ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32, &speed_tensor
+        );
+    } else {
+        /* Older models use float32 for speed */
+        float speed_val = speed;
+        int64_t speed_shape[] = {1};
+        status = kokoro->ort->CreateTensorWithDataAsOrtValue(
+            memory_info, &speed_val, sizeof(float),
+            speed_shape, 1, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &speed_tensor
+        );
+    }
     
     if (check_ort_status(kokoro->ort, status) != 0) {
         kokoro->ort->ReleaseValue(input_tensor);
@@ -425,8 +486,8 @@ kokoro_error_t kokoro_create_from_phonemes(
         return KOKORO_ERROR_INFERENCE_FAILED;
     }
     
-    /* Run inference */
-    const char* input_names[] = {"input_ids", "style", "speed"};
+    /* Run inference with detected input names */
+    const char* input_names[] = {kokoro->tokens_input_name, "style", "speed"};
     const char* output_names[] = {"output"};
     OrtValue* input_tensors[] = {input_tensor, style_tensor, speed_tensor};
     OrtValue* output_tensor = NULL;
