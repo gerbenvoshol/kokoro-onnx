@@ -161,13 +161,23 @@ python3 ../scripts/convert_voices.py voices-v1.0.bin voices-v1.0-c.bin
 Then run the example:
 
 ```bash
+# Basic usage
 ./build/kokoro_example kokoro-v1.0.onnx voices-v1.0-c.bin output.wav af_sarah "Hello from C!"
+
+# With custom speed (0.5 = slow, 2.0 = fast)
+./build/kokoro_example kokoro-v1.0.onnx voices-v1.0-c.bin output.wav af_sarah "Hello from C!" 1.2
+
+# Minimal (uses defaults: voice=af_sarah, text="Hello...", speed=1.0)
+./build/kokoro_example kokoro-v1.0.onnx voices-v1.0-c.bin output.wav
 ```
 
-**Note:** The example requires 3 file arguments:
-1. ONNX model file (kokoro-v1.0.onnx)
-2. **Voices file in C format** (voices-v1.0-c.bin, not voices-v1.0.bin)
-3. Output WAV file (output.wav)
+**Arguments:**
+1. ONNX model file (required)
+2. Voices file in C format (required)
+3. Output WAV file (required)
+4. Voice name (optional, default: af_sarah)
+5. Text to synthesize (optional)
+6. Speed 0.5-2.0 (optional, default: 1.0)
 
 This will generate `output.wav` containing the synthesized speech.
 

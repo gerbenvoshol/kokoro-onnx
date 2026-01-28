@@ -239,7 +239,7 @@ If you encounter an issue not listed here:
 
 ```bash
 # Basic usage
-./kokoro_example MODEL VOICES OUTPUT [VOICE] [TEXT]
+./kokoro_example MODEL VOICES OUTPUT [VOICE] [TEXT] [SPEED]
 
 # With actual files
 ./kokoro_example \
@@ -249,12 +249,30 @@ If you encounter an issue not listed here:
     af_sarah \
     "Hello world"
 
-# Minimal (uses defaults)
+# With custom speed (0.5-2.0)
+./kokoro_example \
+    resources/kokoro-v1.0.onnx \
+    resources/voices-v1.0-c.bin \
+    output.wav \
+    af_sarah \
+    "Fast speech!" \
+    1.5
+
+# Minimal (uses defaults: voice=af_sarah, text="Hello...", speed=1.0)
 ./kokoro_example \
     resources/kokoro-v1.0.onnx \
     resources/voices-v1.0-c.bin \
     output.wav
 ```
+
+### Arguments
+
+1. **model.onnx** - ONNX model file (required)
+2. **voices.bin** - Voices in C format (required)
+3. **output.wav** - Output file path (required)
+4. **voice** - Voice name like "af_sarah" (optional, default: af_sarah)
+5. **text** - Text to synthesize (optional, default message)
+6. **speed** - Speech speed 0.5-2.0 (optional, default: 1.0)
 
 ### File Format Requirements
 

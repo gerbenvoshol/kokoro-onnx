@@ -97,8 +97,21 @@ python3 ../../scripts/convert_voices.py voices-v1.0.bin voices-v1.0-c.bin
 
 ```bash
 cd c/resources
+
+# Basic usage
 ../build/kokoro_example kokoro-v1.0.onnx voices-v1.0-c.bin output.wav af_sarah "Hello from Kokoro C!"
+
+# With custom speed
+../build/kokoro_example kokoro-v1.0.onnx voices-v1.0-c.bin output.wav af_sarah "Fast speech!" 1.5
+
+# Slow speech
+../build/kokoro_example kokoro-v1.0.onnx voices-v1.0-c.bin output.wav af_bella "Slow speech." 0.8
 ```
+
+**Speed parameter:**
+- Range: 0.5 (slow) to 2.0 (fast)
+- Default: 1.0 (normal)
+- Optional 6th argument
 
 This will generate `output.wav` with synthesized speech.
 
