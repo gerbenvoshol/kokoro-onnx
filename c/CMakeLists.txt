@@ -56,10 +56,12 @@ endif()
 # Library source files
 set(KOKORO_SOURCES
     src/kokoro.c
+    src/argparse.c
 )
 
 set(KOKORO_HEADERS
     include/kokoro.h
+    include/argparse.h
 )
 
 # Create library

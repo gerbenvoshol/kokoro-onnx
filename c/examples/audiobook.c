@@ -11,10 +11,11 @@
  * - Progress display during generation
  * 
  * Usage:
- *   ./audiobook <model.onnx> <voices.bin> <input.txt> <output.wav> [voice] [lang] [speed]
+ *   ./audiobook -m <model.onnx> -v <voices.bin> -i <input.txt> -o <output.wav>
+ *   ./audiobook <model.onnx> <voices.bin> <input.txt> <output.wav>  (backward compatible)
  * 
  * Example:
- *   ./audiobook kokoro-v1.0.onnx voices-v1.0-c.bin story.txt audiobook.wav af_sarah en-us 1.0
+ *   ./audiobook -m kokoro-v1.0.onnx -v voices-v1.0-c.bin -i story.txt -o audiobook.wav
  */
 
 #include <stdio.h>
@@ -23,6 +24,7 @@
 #include <stdint.h>
 #include <ctype.h>
 #include "kokoro.h"
+#include "argparse.h"
 
 /* Default pause durations in milliseconds */
 #define PAUSE_PERIOD 500      /* Period/exclamation/question mark */
@@ -382,37 +384,23 @@ int generate_audiobook(kokoro_t* kokoro, const char* input_file,
 }
 
 int main(int argc, char** argv) {
-    if (argc < 5) {
-        fprintf(stderr, "Usage: %s <model.onnx> <voices.bin> <input.txt> <output.wav> [voice] [lang] [speed]\n", argv[0]);
-        fprintf(stderr, "\nGenerate audiobook from text file with natural pauses.\n");
-        fprintf(stderr, "\nArguments:\n");
-        fprintf(stderr, "  model.onnx   - Path to ONNX model file\n");
-        fprintf(stderr, "  voices.bin   - Path to voices binary file\n");
-        fprintf(stderr, "  input.txt    - Input text file\n");
-        fprintf(stderr, "  output.wav   - Output WAV file\n");
-        fprintf(stderr, "  voice        - Voice name (default: af_sarah)\n");
-        fprintf(stderr, "  lang         - Language code (default: en-us)\n");
-        fprintf(stderr, "  speed        - Speech speed 0.5-2.0 (default: 1.0)\n");
-        fprintf(stderr, "\nText file features:\n");
-        fprintf(stderr, "  - Automatic pauses at: . (500ms), , (250ms), ; : (350ms)\n");
-        fprintf(stderr, "  - Paragraph breaks: empty lines (800ms pause)\n");
-        fprintf(stderr, "  - Custom pauses: [PAUSE:500] for 500ms pause\n");
-        fprintf(stderr, "\nExample:\n");
-        fprintf(stderr, "  %s kokoro-v1.0.onnx voices-v1.0-c.bin story.txt audiobook.wav\n", argv[0]);
-        return 1;
-    }
+    /* Parse command-line arguments */
+    const char* model_path;
+    const char* voices_path;
+    const char* input_path;
+    const char* output_path;
+    const char* voice_name;
+    const char* lang;
+    float speed;
     
-    const char* model_path = argv[1];
-    const char* voices_path = argv[2];
-    const char* input_path = argv[3];
-    const char* output_path = argv[4];
-    const char* voice_name = (argc > 5) ? argv[5] : "af_sarah";
-    const char* lang = (argc > 6) ? argv[6] : "en-us";
-    float speed = (argc > 7) ? atof(argv[7]) : 1.0f;
+    int parse_result = parse_audiobook_args(
+        argc, argv,
+        &model_path, &voices_path, &input_path, &output_path,
+        &voice_name, &lang, &speed
+    );
     
-    if (speed < 0.5f || speed > 2.0f) {
-        fprintf(stderr, "Error: Speed must be between 0.5 and 2.0\n");
-        return 1;
+    if (parse_result != 0) {
+        return (parse_result < 0) ? 1 : 0;  /* -1 = error, 1 = help shown */
     }
     
     printf("Kokoro Audiobook Generator\n");
