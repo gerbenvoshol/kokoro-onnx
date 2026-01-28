@@ -23,7 +23,9 @@ struct kokoro_t {
     char* voice_names[MAX_VOICES];
     float* voice_embeddings[MAX_VOICES];
     size_t num_voices;
-    size_t embedding_size;
+    size_t embedding_size;  /* Total size of embedding (could be flattened 2D) */
+    size_t voice_dim;       /* Dimension of a single voice vector (e.g., 256) */
+    int is_2d_embedding;    /* 1 if embedding is 2D (flattened), 0 if 1D */
     
     /* Vocabulary mapping: phoneme -> token_id */
     int vocab[256];  /* Simple ASCII/UTF-8 first byte mapping */
@@ -126,6 +128,22 @@ static kokoro_error_t load_voices(kokoro_t* kokoro, const char* voices_path) {
     
     kokoro->num_voices = (size_t)num_voices;
     kokoro->embedding_size = (size_t)embedding_size;
+    
+    /* Detect if embeddings are 2D (flattened from [max_length, dim])
+     * If embedding_size is much larger than 256, it's likely flattened 2D */
+    if (kokoro->embedding_size == 256) {
+        /* 1D embedding: shape is [256] */
+        kokoro->is_2d_embedding = 0;
+        kokoro->voice_dim = 256;
+    } else if (kokoro->embedding_size == 130560) {
+        /* 2D embedding flattened: shape was [510, 256] */
+        kokoro->is_2d_embedding = 1;
+        kokoro->voice_dim = 256;
+    } else {
+        /* Try to detect based on divisibility */
+        kokoro->is_2d_embedding = (kokoro->embedding_size % 256 == 0 && kokoro->embedding_size > 256);
+        kokoro->voice_dim = 256;
+    }
     
     if (kokoro->num_voices > MAX_VOICES) {
         fclose(fp);
@@ -422,8 +440,20 @@ kokoro_error_t kokoro_create_from_phonemes(
     tokens[num_tokens + 1] = 0;
     num_tokens += 2;
     
-    /* Use the voice embedding directly (not indexed by sequence length) */
-    float* style = voice_embedding;
+    /* Index into voice embedding based on sequence length (like Python implementation)
+     * Python: voice = voice[len(tokens)]
+     * If embedding is 2D (flattened from [max_length, dim]), we need to index by token count */
+    float* style;
+    if (kokoro->is_2d_embedding) {
+        /* 2D embedding: index into flattened array [max_length * dim]
+         * Offset = num_tokens * voice_dim (but num_tokens includes padding, need actual phoneme count) */
+        int phoneme_count = num_tokens - 2;  /* Remove padding tokens */
+        size_t offset = phoneme_count * kokoro->voice_dim;
+        style = voice_embedding + offset;
+    } else {
+        /* 1D embedding: use directly */
+        style = voice_embedding;
+    }
     
     /* Prepare ONNX Runtime inputs */
     OrtMemoryInfo* memory_info;
@@ -446,10 +476,10 @@ kokoro_error_t kokoro_create_from_phonemes(
     }
     
     /* Create style tensor */
-    int64_t style_shape[] = {1, kokoro->embedding_size};
+    int64_t style_shape[] = {1, kokoro->voice_dim};
     OrtValue* style_tensor = NULL;
     status = kokoro->ort->CreateTensorWithDataAsOrtValue(
-        memory_info, style, kokoro->embedding_size * sizeof(float),
+        memory_info, style, kokoro->voice_dim * sizeof(float),
         style_shape, 2, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &style_tensor
     );
     
