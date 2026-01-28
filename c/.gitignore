@@ -1,0 +1,32 @@
+# Build artifacts
+build/
+*.o
+*.so
+*.a
+*.dylib
+*.dll
+*.exe
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+!CMakeLists.txt
+!cmake/kokoroConfig.cmake.in
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Model files (download separately)
+*.onnx
+*.bin
+
+# Generated audio
+*.wav
+*.mp3
