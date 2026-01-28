@@ -152,11 +152,22 @@ wget https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v
 wget https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin
 ```
 
+**Important:** Convert voices to C format:
+
+```bash
+python3 ../scripts/convert_voices.py voices-v1.0.bin voices-v1.0-c.bin
+```
+
 Then run the example:
 
 ```bash
-./build/kokoro_example kokoro-v1.0.onnx voices-v1.0.bin output.wav af_sarah "Hello from C!"
+./build/kokoro_example kokoro-v1.0.onnx voices-v1.0-c.bin output.wav af_sarah "Hello from C!"
 ```
+
+**Note:** The example requires 3 file arguments:
+1. ONNX model file (kokoro-v1.0.onnx)
+2. **Voices file in C format** (voices-v1.0-c.bin, not voices-v1.0.bin)
+3. Output WAV file (output.wav)
 
 This will generate `output.wav` containing the synthesized speech.
 

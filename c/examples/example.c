@@ -87,9 +87,18 @@ int write_wav(const char* filename, const float* samples, size_t num_samples, in
 
 int main(int argc, char** argv) {
     if (argc < 4) {
+        fprintf(stderr, "Error: Not enough arguments\n\n");
         fprintf(stderr, "Usage: %s <model.onnx> <voices.bin> <output.wav> [voice] [text]\n", argv[0]);
+        fprintf(stderr, "\nArguments:\n");
+        fprintf(stderr, "  <model.onnx>   - Path to ONNX model file (required)\n");
+        fprintf(stderr, "  <voices.bin>   - Path to voices binary file (required)\n");
+        fprintf(stderr, "  <output.wav>   - Path to output WAV file (required)\n");
+        fprintf(stderr, "  [voice]        - Voice name (optional, default: af_sarah)\n");
+        fprintf(stderr, "  [text]         - Text to synthesize (optional)\n");
         fprintf(stderr, "\nExample:\n");
-        fprintf(stderr, "  %s kokoro-v1.0.onnx voices-v1.0.bin output.wav af_sarah \"Hello world\"\n", argv[0]);
+        fprintf(stderr, "  %s kokoro-v1.0.onnx voices-v1.0-c.bin output.wav af_sarah \"Hello world\"\n", argv[0]);
+        fprintf(stderr, "\nWith resources directory:\n");
+        fprintf(stderr, "  %s resources/kokoro-v1.0.onnx resources/voices-v1.0-c.bin output.wav\n", argv[0]);
         return 1;
     }
     
@@ -102,14 +111,41 @@ int main(int argc, char** argv) {
     printf("Kokoro TTS - Pure C Implementation\n");
     printf("===================================\n\n");
     
+    /* Validate file paths */
+    FILE* test_file = fopen(model_path, "rb");
+    if (!test_file) {
+        fprintf(stderr, "Error: Cannot open model file: %s\n", model_path);
+        fprintf(stderr, "Please check that the file exists and path is correct.\n");
+        return 1;
+    }
+    fclose(test_file);
+    
+    test_file = fopen(voices_path, "rb");
+    if (!test_file) {
+        fprintf(stderr, "Error: Cannot open voices file: %s\n", voices_path);
+        fprintf(stderr, "Please check that the file exists and path is correct.\n");
+        fprintf(stderr, "\nNote: You need the C-format voices file (voices-v1.0-c.bin),\n");
+        fprintf(stderr, "not the Python format (voices-v1.0.bin).\n");
+        return 1;
+    }
+    fclose(test_file);
+    
     /* Initialize Kokoro */
     printf("Initializing Kokoro TTS...\n");
     printf("  Model: %s\n", model_path);
     printf("  Voices: %s\n", voices_path);
+    printf("  Output: %s\n", output_path);
+    printf("  Voice: %s\n", voice_name);
     
     kokoro_t* kokoro = kokoro_init(model_path, voices_path, NULL, NULL);
     if (!kokoro) {
-        fprintf(stderr, "Error: Failed to initialize Kokoro\n");
+        fprintf(stderr, "\nError: Failed to initialize Kokoro\n");
+        fprintf(stderr, "\nPossible causes:\n");
+        fprintf(stderr, "  1. Model file is invalid or corrupted\n");
+        fprintf(stderr, "  2. Voices file is in wrong format (need C binary format)\n");
+        fprintf(stderr, "  3. Insufficient memory\n");
+        fprintf(stderr, "  4. espeak-ng not properly installed\n");
+        fprintf(stderr, "\nTry running: python3 scripts/convert_voices.py voices-v1.0.bin voices-v1.0-c.bin\n");
         return 1;
     }
     
