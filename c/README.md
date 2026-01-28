@@ -161,23 +161,28 @@ python3 ../scripts/convert_voices.py voices-v1.0.bin voices-v1.0-c.bin
 Then run the example:
 
 ```bash
-# Basic usage
-./build/kokoro_example kokoro-v1.0.onnx voices-v1.0-c.bin output.wav af_sarah "Hello from C!"
+# New flag-based usage (recommended)
+./build/kokoro_example -m kokoro-v1.0.onnx -v voices-v1.0-c.bin -o output.wav
+./build/kokoro_example -m kokoro-v1.0.onnx -v voices-v1.0-c.bin -o output.wav -V af_sarah -t "Hello!"
+./build/kokoro_example --model kokoro-v1.0.onnx --voices voices-v1.0-c.bin --output output.wav --speed 1.5
 
-# With custom speed (0.5 = slow, 2.0 = fast)
-./build/kokoro_example kokoro-v1.0.onnx voices-v1.0-c.bin output.wav af_sarah "Hello from C!" 1.2
+# Get help
+./build/kokoro_example --help
 
-# Minimal (uses defaults: voice=af_sarah, text="Hello...", speed=1.0)
+# Backward compatible positional arguments (still works)
 ./build/kokoro_example kokoro-v1.0.onnx voices-v1.0-c.bin output.wav
+./build/kokoro_example kokoro-v1.0.onnx voices-v1.0-c.bin output.wav af_sarah "Hello from C!" 1.2
 ```
 
-**Arguments:**
-1. ONNX model file (required)
-2. Voices file in C format (required)
-3. Output WAV file (required)
-4. Voice name (optional, default: af_sarah)
-5. Text to synthesize (optional)
-6. Speed 0.5-2.0 (optional, default: 1.0)
+**Available Options:**
+- `-m, --model` - ONNX model file (required)
+- `-v, --voices` - Voices file in C format (required)
+- `-o, --output` - Output WAV file (required)
+- `-V, --voice` - Voice name (optional, default: af_sarah)
+- `-t, --text` - Text to synthesize (optional)
+- `-s, --speed` - Speech speed 0.5-2.0 (optional, default: 1.0)
+- `-l, --lang` - Language code (optional, default: en-us)
+- `-h, --help` - Show help message
 
 This will generate `output.wav` containing the synthesized speech.
 
@@ -189,9 +194,27 @@ The audiobook example reads a text file and generates an audiobook with natural 
 # Convert voices file first (if not already done)
 python3 ../scripts/convert_voices.py voices-v1.0.bin voices-v1.0-c.bin
 
-# Generate audiobook from text file
+# New flag-based usage (recommended)
+./build/kokoro_audiobook -m kokoro-v1.0.onnx -v voices-v1.0-c.bin -i input.txt -o audiobook.wav
+./build/kokoro_audiobook -m model.onnx -v voices.bin -i story.txt -o book.wav -V af_bella -s 1.1
+
+# Get help
+./build/kokoro_audiobook --help
+
+# Backward compatible positional arguments (still works)
+./build/kokoro_audiobook kokoro-v1.0.onnx voices-v1.0-c.bin input.txt audiobook.wav
 ./build/kokoro_audiobook kokoro-v1.0.onnx voices-v1.0-c.bin input.txt audiobook.wav af_sarah en-us 1.0
 ```
+
+**Available Options:**
+- `-m, --model` - ONNX model file (required)
+- `-v, --voices` - Voices file (required)
+- `-i, --input` - Input text file (required)
+- `-o, --output` - Output WAV file (required)
+- `-V, --voice` - Voice name (optional, default: af_sarah)
+- `-l, --lang` - Language code (optional, default: en-us)
+- `-s, --speed` - Speech speed 0.5-2.0 (optional, default: 1.0)
+- `-h, --help` - Show help message
 
 **Features:**
 - Automatic pauses at punctuation: `.` `!` `?` (500ms), `,` (250ms), `;` `:` (350ms)

@@ -98,20 +98,28 @@ python3 ../../scripts/convert_voices.py voices-v1.0.bin voices-v1.0-c.bin
 ```bash
 cd c/resources
 
-# Basic usage
+# New flag-based usage (recommended)
+../build/kokoro_example -m kokoro-v1.0.onnx -v voices-v1.0-c.bin -o output.wav
+../build/kokoro_example -m kokoro-v1.0.onnx -v voices-v1.0-c.bin -o output.wav -t "Hello from Kokoro C!"
+../build/kokoro_example -m kokoro-v1.0.onnx -v voices-v1.0-c.bin -o output.wav -V af_bella -s 1.5
+
+# Get help
+../build/kokoro_example --help
+
+# Backward compatible positional arguments (still works)
 ../build/kokoro_example kokoro-v1.0.onnx voices-v1.0-c.bin output.wav af_sarah "Hello from Kokoro C!"
-
-# With custom speed
 ../build/kokoro_example kokoro-v1.0.onnx voices-v1.0-c.bin output.wav af_sarah "Fast speech!" 1.5
-
-# Slow speech
 ../build/kokoro_example kokoro-v1.0.onnx voices-v1.0-c.bin output.wav af_bella "Slow speech." 0.8
 ```
 
-**Speed parameter:**
-- Range: 0.5 (slow) to 2.0 (fast)
-- Default: 1.0 (normal)
-- Optional 6th argument
+**Key Options:**
+- `-m, --model` - ONNX model file
+- `-v, --voices` - Voices binary file
+- `-o, --output` - Output WAV file
+- `-V, --voice` - Voice name (default: af_sarah)
+- `-t, --text` - Text to synthesize
+- `-s, --speed` - Speed 0.5 (slow) to 2.0 (fast), default: 1.0
+- `-h, --help` - Show help message
 
 This will generate `output.wav` with synthesized speech.
 

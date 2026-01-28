@@ -238,40 +238,51 @@ If you encounter an issue not listed here:
 ### Correct Example Usage
 
 ```bash
-# Basic usage
+# New flag-based usage (recommended)
+./kokoro_example -m MODEL -v VOICES -o OUTPUT [OPTIONS]
+
+# With actual files using flags
+./kokoro_example \
+    -m resources/kokoro-v1.0.onnx \
+    -v resources/voices-v1.0-c.bin \
+    -o output.wav \
+    -V af_sarah \
+    -t "Hello world"
+
+# With custom speed
+./kokoro_example \
+    -m resources/kokoro-v1.0.onnx \
+    -v resources/voices-v1.0-c.bin \
+    -o output.wav \
+    -s 1.5
+
+# Get help
+./kokoro_example --help
+
+# Backward compatible positional arguments (still works)
 ./kokoro_example MODEL VOICES OUTPUT [VOICE] [TEXT] [SPEED]
-
-# With actual files
-./kokoro_example \
-    resources/kokoro-v1.0.onnx \
-    resources/voices-v1.0-c.bin \
-    output.wav \
-    af_sarah \
-    "Hello world"
-
-# With custom speed (0.5-2.0)
-./kokoro_example \
-    resources/kokoro-v1.0.onnx \
-    resources/voices-v1.0-c.bin \
-    output.wav \
-    af_sarah \
-    "Fast speech!" \
-    1.5
-
-# Minimal (uses defaults: voice=af_sarah, text="Hello...", speed=1.0)
-./kokoro_example \
-    resources/kokoro-v1.0.onnx \
-    resources/voices-v1.0-c.bin \
-    output.wav
+./kokoro_example resources/kokoro-v1.0.onnx resources/voices-v1.0-c.bin output.wav
+./kokoro_example resources/kokoro-v1.0.onnx resources/voices-v1.0-c.bin output.wav af_sarah "Hello world"
 ```
 
-### Arguments
+### Available Options
 
+**Using flags (recommended):**
+- `-m, --model MODEL` - ONNX model file (required)
+- `-v, --voices VOICES` - Voices in C format (required)
+- `-o, --output OUTPUT` - Output file path (required)
+- `-V, --voice VOICE` - Voice name like "af_sarah" (optional, default: af_sarah)
+- `-t, --text TEXT` - Text to synthesize (optional, default message)
+- `-s, --speed SPEED` - Speech speed 0.5-2.0 (optional, default: 1.0)
+- `-l, --lang LANG` - Language code (optional, default: en-us)
+- `-h, --help` - Show help message
+
+**Using positional arguments (backward compatible):**
 1. **model.onnx** - ONNX model file (required)
 2. **voices.bin** - Voices in C format (required)
 3. **output.wav** - Output file path (required)
-4. **voice** - Voice name like "af_sarah" (optional, default: af_sarah)
-5. **text** - Text to synthesize (optional, default message)
+4. **voice** - Voice name (optional, default: af_sarah)
+5. **text** - Text to synthesize (optional)
 6. **speed** - Speech speed 0.5-2.0 (optional, default: 1.0)
 
 ### File Format Requirements
