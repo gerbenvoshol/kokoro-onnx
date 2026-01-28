@@ -36,6 +36,9 @@ struct kokoro_t {
     /* Model input names (detected at initialization) */
     char* tokens_input_name;  /* "input_ids" or "tokens" */
     int use_newer_model;      /* 1 if model uses "input_ids", 0 if "tokens" */
+    
+    /* Model output name (detected at initialization) */
+    char* output_name;  /* e.g., "output" or "audio" */
 };
 
 /* Vocabulary mapping: phoneme -> token_id
@@ -289,6 +292,33 @@ kokoro_t* kokoro_init(
         return NULL;
     }
     
+    /* Detect model output name */
+    size_t num_outputs;
+    status = kokoro->ort->SessionGetOutputCount(kokoro->session, &num_outputs);
+    if (check_ort_status(kokoro->ort, status) != 0 || num_outputs == 0) {
+        fprintf(stderr, "Kokoro init error: Could not get model outputs\n");
+        free(kokoro->tokens_input_name);
+        kokoro->ort->ReleaseSession(kokoro->session);
+        kokoro->ort->ReleaseEnv(kokoro->env);
+        free(kokoro);
+        return NULL;
+    }
+    
+    /* Get the first output name (models typically have one audio output) */
+    char* output_name;
+    status = kokoro->ort->SessionGetOutputName(kokoro->session, 0, kokoro->allocator, &output_name);
+    if (check_ort_status(kokoro->ort, status) != 0 || output_name == NULL) {
+        fprintf(stderr, "Kokoro init error: Could not get model output name\n");
+        free(kokoro->tokens_input_name);
+        kokoro->ort->ReleaseSession(kokoro->session);
+        kokoro->ort->ReleaseEnv(kokoro->env);
+        free(kokoro);
+        return NULL;
+    }
+    
+    kokoro->output_name = strdup(output_name);
+    kokoro->ort->AllocatorFree(kokoro->allocator, output_name);
+    
     /* Initialize vocabulary */
     init_vocab(kokoro);
     
@@ -325,6 +355,11 @@ void kokoro_free(kokoro_t* kokoro) {
     /* Free model input name */
     if (kokoro->tokens_input_name) {
         free(kokoro->tokens_input_name);
+    }
+    
+    /* Free model output name */
+    if (kokoro->output_name) {
+        free(kokoro->output_name);
     }
     
     /* Free ONNX Runtime resources */
@@ -516,9 +551,9 @@ kokoro_error_t kokoro_create_from_phonemes(
         return KOKORO_ERROR_INFERENCE_FAILED;
     }
     
-    /* Run inference with detected input names */
+    /* Run inference with detected input and output names */
     const char* input_names[] = {kokoro->tokens_input_name, "style", "speed"};
-    const char* output_names[] = {"output"};
+    const char* output_names[] = {kokoro->output_name};
     OrtValue* input_tensors[] = {input_tensor, style_tensor, speed_tensor};
     OrtValue* output_tensor = NULL;
     
