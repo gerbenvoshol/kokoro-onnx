@@ -316,7 +316,21 @@ python scripts/convert_voices.py voices-v1.0.bin voices-v1.0-c.bin
 
 ## Troubleshooting
 
-### espeak-ng not found
+For detailed troubleshooting information, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
+
+### Common Issues
+
+**"Error: Not enough arguments"**
+- Make sure to provide all 3 required file arguments
+- Usage: `./kokoro_example <model.onnx> <voices.bin> <output.wav> [voice] [text]`
+- See [TROUBLESHOOTING.md](TROUBLESHOOTING.md#issue-error-not-enough-arguments) for details
+
+**"Cannot open voices file"**
+- Use the C binary format: `voices-v1.0-c.bin`
+- Not the Python format: `voices-v1.0.bin`
+- Convert with: `python3 ../scripts/convert_voices.py voices-v1.0.bin voices-v1.0-c.bin`
+
+**espeak-ng not found**
 
 If you get errors about espeak-ng:
 
@@ -324,7 +338,7 @@ If you get errors about espeak-ng:
 2. Set `PHONEMIZER_ESPEAK_LIBRARY` environment variable to the library path
 3. Pass explicit paths to `kokoro_init()`
 
-### ONNX Runtime errors
+**ONNX Runtime errors**
 
 1. Verify ONNX Runtime is installed correctly
 2. Check that the model file is compatible with your ONNX Runtime version
