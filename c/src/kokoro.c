@@ -32,8 +32,6 @@ struct kokoro_t {
     int espeak_initialized;
 };
 
-/* Vocabulary from config.json - simplified to most common phonemes */
-static const struct {
 /* Vocabulary mapping: phoneme -> token_id
  * These mappings are defined in src/kokoro_onnx/config.json in the main Python implementation.
  * Token IDs correspond to the model's internal vocabulary. This is a simplified subset
