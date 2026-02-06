@@ -8,7 +8,11 @@
  * - Automatic pauses at punctuation (., , ; : ! ?)
  * - Custom pause directives: [PAUSE:500] for 500ms pause
  * - Sentence-by-sentence processing for better memory usage
+ * - Automatic handling of long sentences via phoneme batching
  * - Progress display during generation
+ * 
+ * Note: The underlying library automatically batches long sentences (>510 phonemes)
+ * and trims silence, so individual sentences of any length are supported.
  * 
  * Usage:
  *   ./audiobook -m <model.onnx> -v <voices.bin> -i <input.txt> -o <output.wav>
@@ -243,6 +247,10 @@ void trim_whitespace(char* str) {
 
 /**
  * Process text file and generate audiobook
+ * 
+ * Note: kokoro_create() automatically handles long sentences by batching phonemes
+ * at punctuation marks when they exceed 510 characters, so no special handling
+ * is needed here for long sentences.
  */
 int generate_audiobook(kokoro_t* kokoro, const char* input_file, 
                        audio_buffer_t* output, const char* voice,

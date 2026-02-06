@@ -11,6 +11,7 @@ The audiobook generator (`kokoro_audiobook`) reads a text file and converts it t
 - **Automatic Punctuation Pauses**: Natural pauses at periods, commas, and other punctuation
 - **Paragraph Breaks**: Longer pauses between paragraphs
 - **Custom Pause Directives**: Insert custom-length pauses anywhere in text
+- **Long Text Support**: Automatically handles sentences of any length with intelligent batching
 - **Memory Efficient**: Processes text sentence-by-sentence
 - **Progress Display**: Real-time progress during generation
 - **Configurable**: Adjust voice, language, and speed
@@ -196,10 +197,11 @@ afplay audiobook.wav
 
 ### For Long Texts
 
-1. **Split into chapters**: Generate each chapter separately, then concatenate
-2. **Monitor memory**: The generator accumulates all audio in memory
-3. **Check progress**: The generator shows progress during generation
-4. **Be patient**: Long texts can take several minutes to process
+1. **No length limits**: The library now automatically handles sentences of any length by batching phonemes intelligently
+2. **Split into chapters** (optional): Generate each chapter separately for easier management
+3. **Monitor memory**: The generator accumulates all audio in memory
+4. **Check progress**: The generator shows progress during generation
+5. **Be patient**: Long texts can take several minutes to process
 
 ### Voice Selection
 
@@ -220,7 +222,7 @@ Try different voices for different content types:
 
 ### "Text too long" error
 
-Split your text into smaller files or modify `MAX_LINE_LENGTH` in the source.
+This error is now rare as the library automatically handles long texts by batching. If you still encounter it, the text file itself may have extremely long lines. Consider adding line breaks for readability.
 
 ### Choppy audio
 

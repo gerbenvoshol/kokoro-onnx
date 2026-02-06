@@ -70,6 +70,19 @@ The C implementation now matches the Python version's behavior:
 - ✅ Audio concatenation
 - ✅ Same trimming parameters (60 dB, 2048/512 frame settings)
 
+## Impact on Examples
+
+### example.c (Basic TTS)
+- Now handles texts of any length automatically
+- No more truncation for long inputs
+- Better audio quality with silence trimming
+
+### audiobook.c (Long-form Content)
+- Automatically benefits from batching improvements
+- Each sentence call is batched if needed
+- No changes required - works transparently
+- Long sentences are now fully supported
+
 ## Testing Recommendations
 
 1. **Short text**: "This is a test" - should work as before
