@@ -51,7 +51,8 @@ int parse_audiobook_args(
     const char** output_path,
     const char** voice_name,
     const char** lang,
-    float* speed
+    float* speed,
+    int* auto_pause
 );
 
 #ifdef __cplusplus

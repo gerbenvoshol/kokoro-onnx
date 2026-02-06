@@ -65,17 +65,20 @@ void print_audiobook_help(const char* program_name) {
     printf("  -V, --voice VOICE       Voice name (default: af_sarah)\n");
     printf("  -l, --lang LANG         Language code (default: en-us)\n");
     printf("  -s, --speed SPEED       Speech speed 0.5-2.0 (default: 1.0)\n");
+    printf("  -n, --no-auto-pause     Disable automatic pauses at punctuation\n");
     printf("  -h, --help              Show this help message\n\n");
     
     printf("Text File Features:\n");
-    printf("  - Automatic pauses at: . ! ? (500ms), , (250ms), ; : (350ms)\n");
+    printf("  - Automatic pauses (default): . ! ? (500ms), , (250ms), ; : (350ms)\n");
     printf("  - Paragraph breaks: empty lines (800ms pause)\n");
-    printf("  - Custom pauses: [PAUSE:500] for 500ms pause\n\n");
+    printf("  - Custom pauses: [PAUSE:500] for 500ms pause (always work)\n");
+    printf("  - Voice changes: [af_sarah] to switch voice inline\n\n");
     
     printf("Examples:\n");
     printf("  # Using flags (recommended)\n");
     printf("  %s -m model.onnx -v voices.bin -i story.txt -o audiobook.wav\n", program_name);
-    printf("  %s -m model.onnx -v voices.bin -i story.txt -o audiobook.wav -V af_bella -s 1.1\n\n", program_name);
+    printf("  %s -m model.onnx -v voices.bin -i story.txt -o audiobook.wav -V af_bella -s 1.1\n", program_name);
+    printf("  %s -m model.onnx -v voices.bin -i story.txt -o audiobook.wav --no-auto-pause\n\n", program_name);
     
     printf("  # Using positional arguments (backward compatible)\n");
     printf("  %s model.onnx voices.bin story.txt audiobook.wav\n", program_name);
@@ -192,7 +195,8 @@ int parse_audiobook_args(
     const char** output_path,
     const char** voice_name,
     const char** lang,
-    float* speed
+    float* speed,
+    int* auto_pause
 ) {
     /* Set defaults */
     *model_path = NULL;
@@ -202,6 +206,7 @@ int parse_audiobook_args(
     *voice_name = "af_sarah";
     *lang = "en-us";
     *speed = 1.0f;
+    *auto_pause = 1;  /* Automatic pauses enabled by default */
     
     /* Check for positional arguments first (backward compatibility) */
     if (argc >= 5 && argv[1][0] != '-') {
@@ -224,21 +229,22 @@ int parse_audiobook_args(
     
     /* Flag-based argument parsing */
     static struct option long_options[] = {
-        {"model",   required_argument, 0, 'm'},
-        {"voices",  required_argument, 0, 'v'},
-        {"input",   required_argument, 0, 'i'},
-        {"output",  required_argument, 0, 'o'},
-        {"voice",   required_argument, 0, 'V'},
-        {"lang",    required_argument, 0, 'l'},
-        {"speed",   required_argument, 0, 's'},
-        {"help",    no_argument,       0, 'h'},
+        {"model",         required_argument, 0, 'm'},
+        {"voices",        required_argument, 0, 'v'},
+        {"input",         required_argument, 0, 'i'},
+        {"output",        required_argument, 0, 'o'},
+        {"voice",         required_argument, 0, 'V'},
+        {"lang",          required_argument, 0, 'l'},
+        {"speed",         required_argument, 0, 's'},
+        {"no-auto-pause", no_argument,       0, 'n'},
+        {"help",          no_argument,       0, 'h'},
         {0, 0, 0, 0}
     };
     
     int opt;
     int option_index = 0;
     
-    while ((opt = getopt_long(argc, argv, "m:v:i:o:V:l:s:h", long_options, &option_index)) != -1) {
+    while ((opt = getopt_long(argc, argv, "m:v:i:o:V:l:s:nh", long_options, &option_index)) != -1) {
         switch (opt) {
             case 'm':
                 *model_path = optarg;
@@ -264,6 +270,9 @@ int parse_audiobook_args(
                     fprintf(stderr, "Error: Speed must be between 0.5 and 2.0\n");
                     return -1;
                 }
+                break;
+            case 'n':
+                *auto_pause = 0;  /* Disable automatic pauses */
                 break;
             case 'h':
                 print_audiobook_help(argv[0]);
