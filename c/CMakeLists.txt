@@ -57,11 +57,13 @@ endif()
 set(KOKORO_SOURCES
     src/kokoro.c
     src/argparse.c
+    src/audio_utils.c
 )
 
 set(KOKORO_HEADERS
     include/kokoro.h
     include/argparse.h
+    include/audio_utils.h
 )
 
 # Create library
