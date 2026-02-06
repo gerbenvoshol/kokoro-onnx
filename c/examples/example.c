@@ -15,7 +15,6 @@
 #include <stdint.h>
 #include "kokoro.h"
 #include "argparse.h"
-#include "audio_utils.h"
 
 /* WAV file header structure */
 typedef struct {
@@ -188,41 +187,7 @@ int main(int argc, char** argv) {
     }
     
     printf("  ✓ Generated %zu samples at %d Hz\n", audio.num_samples, audio.sample_rate);
-    printf("  Duration: %.2f seconds\n", (double)audio.num_samples / audio.sample_rate);
-    
-    /* Trim silence for better audio quality */
-    printf("  Trimming silence...\n");
-    float* trimmed_samples = (float*)malloc(audio.num_samples * sizeof(float));
-    if (!trimmed_samples) {
-        fprintf(stderr, "Error: Out of memory\n");
-        kokoro_audio_free(&audio);
-        kokoro_free(kokoro);
-        return 1;
-    }
-    
-    size_t trimmed_size = 0;
-    int trim_result = audio_trim_silence(
-        audio.samples, audio.num_samples,
-        trimmed_samples, &trimmed_size,
-        60.0f,  /* top_db: 60 dB below peak is considered silence */
-        2048,   /* frame_length: analysis window size */
-        512     /* hop_length: step between frames */
-    );
-    
-    if (trim_result != 0 || trimmed_size == 0) {
-        fprintf(stderr, "Warning: Failed to trim silence, using original audio\n");
-        free(trimmed_samples);
-        trimmed_samples = audio.samples;
-        trimmed_size = audio.num_samples;
-    } else {
-        printf("  ✓ Trimmed to %zu samples (%.2f seconds)\n", 
-               trimmed_size, (double)trimmed_size / audio.sample_rate);
-        /* Free original samples and use trimmed ones */
-        free(audio.samples);
-        audio.samples = trimmed_samples;
-        audio.num_samples = trimmed_size;
-    }
-    printf("\n");
+    printf("  Duration: %.2f seconds\n\n", (double)audio.num_samples / audio.sample_rate);
     
     /* Save to WAV file */
     printf("Saving audio to: %s\n", output_path);
