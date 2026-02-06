@@ -620,6 +620,8 @@ kokoro_error_t kokoro_create_from_phonemes(
  * Split phonemes into batches at punctuation marks to avoid exceeding MAX_PHONEME_LENGTH
  * Returns array of phoneme strings (caller must free each string and array)
  */
+#define BATCH_BUFFER_PADDING 100  /* Extra buffer space for punctuation and safety margin */
+
 static char** split_phonemes_into_batches(const char* phonemes, size_t* num_batches) {
     if (!phonemes || !num_batches) {
         return NULL;
@@ -641,7 +643,7 @@ static char** split_phonemes_into_batches(const char* phonemes, size_t* num_batc
         return batches;
     }
     
-    /* Allocate array for batches (estimate: phoneme_len / MAX + 1) */
+    /* Allocate array for batches (estimate with +2 for edge cases where punctuation creates extra batches) */
     size_t max_batches = (phoneme_len / KOKORO_MAX_PHONEME_LENGTH) + 2;
     char** batches = (char**)malloc(max_batches * sizeof(char*));
     if (!batches) return NULL;
@@ -654,7 +656,7 @@ static char** split_phonemes_into_batches(const char* phonemes, size_t* num_batc
         return NULL;
     }
     
-    char* current_batch = (char*)malloc(KOKORO_MAX_PHONEME_LENGTH + 100);
+    char* current_batch = (char*)malloc(KOKORO_MAX_PHONEME_LENGTH + BATCH_BUFFER_PADDING);
     if (!current_batch) {
         free(phonemes_copy);
         free(batches);
@@ -697,11 +699,15 @@ static char** split_phonemes_into_batches(const char* phonemes, size_t* num_batc
             
             /* Add segment to current batch */
             if (current_len > 0 && !is_punct) {
-                strcat(current_batch, " ");
+                /* Add space separator using direct indexing for efficiency */
+                current_batch[current_len] = ' ';
+                current_batch[current_len + 1] = '\0';
                 current_len++;
             }
-            strncat(current_batch, word_start, segment_len);
+            /* Use memcpy for efficiency instead of strncat */
+            memcpy(current_batch + current_len, word_start, segment_len);
             current_len += segment_len;
+            current_batch[current_len] = '\0';
             
             /* Move to next segment */
             word_start = p + 1;

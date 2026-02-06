@@ -54,10 +54,11 @@ int audio_calculate_rms(
 /**
  * Convert amplitude to decibels
  */
+#define MIN_AMPLITUDE_THRESHOLD 1e-5f  /* Minimum threshold to prevent log10(0) */
+
 static float amplitude_to_db(float amplitude, float ref) {
-    const float amin = 1e-5f;
-    amplitude = fmaxf(amplitude, amin);
-    ref = fmaxf(ref, amin);
+    amplitude = fmaxf(amplitude, MIN_AMPLITUDE_THRESHOLD);
+    ref = fmaxf(ref, MIN_AMPLITUDE_THRESHOLD);
     return 20.0f * log10f(amplitude / ref);
 }
 
