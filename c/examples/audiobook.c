@@ -5,10 +5,15 @@
  * at punctuation marks. It also supports custom pause directives in the text.
  * 
  * Features:
- * - Automatic pauses at punctuation (., , ; : ! ?)
+ * - Automatic pauses at punctuation (., , ; : ! ?) - can be disabled
  * - Custom pause directives: [PAUSE:500] for 500ms pause
+ * - Inline voice switching: [af_sarah] to change voice
  * - Sentence-by-sentence processing for better memory usage
+ * - Automatic handling of long sentences via phoneme batching
  * - Progress display during generation
+ * 
+ * Note: The underlying library automatically batches long sentences (>510 phonemes)
+ * and trims silence, so individual sentences of any length are supported.
  * 
  * Usage:
  *   ./audiobook -m <model.onnx> -v <voices.bin> -i <input.txt> -o <output.wav>
@@ -16,6 +21,7 @@
  * 
  * Example:
  *   ./audiobook -m kokoro-v1.0.onnx -v voices-v1.0-c.bin -i story.txt -o audiobook.wav
+ *   ./audiobook -m kokoro-v1.0.onnx -v voices-v1.0-c.bin -i story.txt -o audiobook.wav --no-auto-pause
  */
 
 #include <stdio.h>
@@ -205,6 +211,45 @@ int parse_pause_directive(const char* text, size_t* chars_consumed) {
 }
 
 /**
+ * Parse voice directive [voice_name]
+ * Returns 1 if voice directive found, 0 otherwise
+ * Stores voice name in buffer (caller must provide buffer of sufficient size)
+ */
+int parse_voice_directive(const char* text, size_t* chars_consumed, char* voice_buffer, size_t buffer_size) {
+    if (*text != '[') {
+        return 0;
+    }
+    
+    /* Check if it's a PAUSE directive first */
+    if (strncmp(text, "[PAUSE:", 7) == 0) {
+        return 0;
+    }
+    
+    const char* p = text + 1;
+    size_t voice_len = 0;
+    
+    /* Read until ] or end of valid voice name characters */
+    while (*p && *p != ']' && voice_len < buffer_size - 1) {
+        /* Voice names typically contain letters, numbers, and underscores */
+        if (isalnum(*p) || *p == '_') {
+            voice_buffer[voice_len++] = *p;
+            p++;
+        } else {
+            /* Invalid character for voice name */
+            return 0;
+        }
+    }
+    
+    if (*p != ']' || voice_len == 0) {
+        return 0;
+    }
+    
+    voice_buffer[voice_len] = '\0';
+    *chars_consumed = (p + 1) - text;
+    return 1;
+}
+
+/**
  * Get pause duration for punctuation character
  */
 int get_punctuation_pause(char c) {
@@ -243,10 +288,14 @@ void trim_whitespace(char* str) {
 
 /**
  * Process text file and generate audiobook
+ * 
+ * Note: kokoro_create() automatically handles long sentences by batching phonemes
+ * at punctuation marks when they exceed 510 characters, so no special handling
+ * is needed here for long sentences.
  */
 int generate_audiobook(kokoro_t* kokoro, const char* input_file, 
-                       audio_buffer_t* output, const char* voice,
-                       const char* lang, float speed) {
+                       audio_buffer_t* output, const char* initial_voice,
+                       const char* lang, float speed, int auto_pause) {
     FILE* fp = fopen(input_file, "r");
     if (!fp) {
         fprintf(stderr, "Error: Could not open input file: %s\n", input_file);
@@ -255,11 +304,16 @@ int generate_audiobook(kokoro_t* kokoro, const char* input_file,
     
     char line[MAX_LINE_LENGTH];
     char sentence[MAX_LINE_LENGTH * 2] = {0};
+    char current_voice[64];
+    strncpy(current_voice, initial_voice, sizeof(current_voice) - 1);
+    current_voice[sizeof(current_voice) - 1] = '\0';
+    
     int line_count = 0;
     int sentence_count = 0;
     int last_was_empty = 0;
     
     printf("Processing text file...\n");
+    printf("Auto-pause: %s\n", auto_pause ? "enabled" : "disabled");
     
     while (fgets(line, sizeof(line), fp)) {
         line_count++;
@@ -270,19 +324,21 @@ int generate_audiobook(kokoro_t* kokoro, const char* input_file,
             if (!last_was_empty && strlen(sentence) > 0) {
                 /* Generate audio for current sentence */
                 kokoro_audio_t audio;
-                kokoro_error_t err = kokoro_create(kokoro, sentence, voice, speed, lang, &audio);
+                kokoro_error_t err = kokoro_create(kokoro, sentence, current_voice, speed, lang, &audio);
                 
                 if (err == KOKORO_SUCCESS) {
                     audio_buffer_append(output, audio.samples, audio.num_samples);
                     kokoro_audio_free(&audio);
                     sentence_count++;
-                    printf("  Sentence %d: %.2fs\r", sentence_count, 
-                           (double)output->num_samples / output->sample_rate);
+                    printf("  Sentence %d: %.2fs (voice: %s)\r", sentence_count, 
+                           (double)output->num_samples / output->sample_rate, current_voice);
                     fflush(stdout);
                 }
                 
-                /* Add paragraph pause */
-                audio_buffer_append_silence(output, PAUSE_PARAGRAPH);
+                /* Add paragraph pause only if auto_pause is enabled */
+                if (auto_pause) {
+                    audio_buffer_append_silence(output, PAUSE_PARAGRAPH);
+                }
                 sentence[0] = '\0';
             }
             last_was_empty = 1;
@@ -296,20 +352,20 @@ int generate_audiobook(kokoro_t* kokoro, const char* input_file,
         while (*p) {
             size_t chars_consumed = 0;
             
-            /* Check for custom pause directive */
+            /* Check for custom pause directive (always works) */
             int pause_duration = parse_pause_directive(p, &chars_consumed);
             if (pause_duration >= 0) {
                 /* Generate audio for accumulated sentence */
                 if (strlen(sentence) > 0) {
                     kokoro_audio_t audio;
-                    kokoro_error_t err = kokoro_create(kokoro, sentence, voice, speed, lang, &audio);
+                    kokoro_error_t err = kokoro_create(kokoro, sentence, current_voice, speed, lang, &audio);
                     
                     if (err == KOKORO_SUCCESS) {
                         audio_buffer_append(output, audio.samples, audio.num_samples);
                         kokoro_audio_free(&audio);
                         sentence_count++;
-                        printf("  Sentence %d: %.2fs\r", sentence_count,
-                               (double)output->num_samples / output->sample_rate);
+                        printf("  Sentence %d: %.2fs (voice: %s)\r", sentence_count,
+                               (double)output->num_samples / output->sample_rate, current_voice);
                         fflush(stdout);
                     }
                     sentence[0] = '\0';
@@ -321,6 +377,34 @@ int generate_audiobook(kokoro_t* kokoro, const char* input_file,
                 continue;
             }
             
+            /* Check for voice directive */
+            char voice_buffer[64];
+            if (parse_voice_directive(p, &chars_consumed, voice_buffer, sizeof(voice_buffer))) {
+                /* Generate audio for accumulated sentence with current voice */
+                if (strlen(sentence) > 0) {
+                    kokoro_audio_t audio;
+                    kokoro_error_t err = kokoro_create(kokoro, sentence, current_voice, speed, lang, &audio);
+                    
+                    if (err == KOKORO_SUCCESS) {
+                        audio_buffer_append(output, audio.samples, audio.num_samples);
+                        kokoro_audio_free(&audio);
+                        sentence_count++;
+                        printf("  Sentence %d: %.2fs (voice: %s)\r", sentence_count,
+                               (double)output->num_samples / output->sample_rate, current_voice);
+                        fflush(stdout);
+                    }
+                    sentence[0] = '\0';
+                }
+                
+                /* Switch to new voice */
+                strncpy(current_voice, voice_buffer, sizeof(current_voice) - 1);
+                current_voice[sizeof(current_voice) - 1] = '\0';
+                printf("\n  Voice changed to: %s\n", current_voice);
+                
+                p += chars_consumed;
+                continue;
+            }
+            
             /* Accumulate characters */
             size_t len = strlen(sentence);
             if (len < sizeof(sentence) - 2) {
@@ -328,26 +412,28 @@ int generate_audiobook(kokoro_t* kokoro, const char* input_file,
                 sentence[len + 1] = '\0';
             }
             
-            /* Check for sentence-ending punctuation */
-            int pause = get_punctuation_pause(*p);
-            if (pause > 0 && (p[1] == '\0' || isspace(p[1]))) {
-                /* Generate audio for sentence */
-                if (strlen(sentence) > 0) {
-                    kokoro_audio_t audio;
-                    kokoro_error_t err = kokoro_create(kokoro, sentence, voice, speed, lang, &audio);
-                    
-                    if (err == KOKORO_SUCCESS) {
-                        audio_buffer_append(output, audio.samples, audio.num_samples);
-                        kokoro_audio_free(&audio);
-                        sentence_count++;
-                        printf("  Sentence %d: %.2fs\r", sentence_count,
-                               (double)output->num_samples / output->sample_rate);
-                        fflush(stdout);
+            /* Check for sentence-ending punctuation (only if auto_pause enabled) */
+            if (auto_pause) {
+                int pause = get_punctuation_pause(*p);
+                if (pause > 0 && (p[1] == '\0' || isspace(p[1]))) {
+                    /* Generate audio for sentence */
+                    if (strlen(sentence) > 0) {
+                        kokoro_audio_t audio;
+                        kokoro_error_t err = kokoro_create(kokoro, sentence, current_voice, speed, lang, &audio);
+                        
+                        if (err == KOKORO_SUCCESS) {
+                            audio_buffer_append(output, audio.samples, audio.num_samples);
+                            kokoro_audio_free(&audio);
+                            sentence_count++;
+                            printf("  Sentence %d: %.2fs (voice: %s)\r", sentence_count,
+                                   (double)output->num_samples / output->sample_rate, current_voice);
+                            fflush(stdout);
+                        }
+                        
+                        /* Add punctuation pause */
+                        audio_buffer_append_silence(output, pause);
+                        sentence[0] = '\0';
                     }
-                    
-                    /* Add punctuation pause */
-                    audio_buffer_append_silence(output, pause);
-                    sentence[0] = '\0';
                 }
             }
             
@@ -367,7 +453,7 @@ int generate_audiobook(kokoro_t* kokoro, const char* input_file,
     /* Process any remaining sentence */
     if (strlen(sentence) > 0) {
         kokoro_audio_t audio;
-        kokoro_error_t err = kokoro_create(kokoro, sentence, voice, speed, lang, &audio);
+        kokoro_error_t err = kokoro_create(kokoro, sentence, current_voice, speed, lang, &audio);
         
         if (err == KOKORO_SUCCESS) {
             audio_buffer_append(output, audio.samples, audio.num_samples);
@@ -392,11 +478,12 @@ int main(int argc, char** argv) {
     const char* voice_name;
     const char* lang;
     float speed;
+    int auto_pause;
     
     int parse_result = parse_audiobook_args(
         argc, argv,
         &model_path, &voices_path, &input_path, &output_path,
-        &voice_name, &lang, &speed
+        &voice_name, &lang, &speed, &auto_pause
     );
     
     if (parse_result != 0) {
@@ -416,17 +503,18 @@ int main(int argc, char** argv) {
     printf("  ✓ Initialized\n\n");
     
     printf("Configuration:\n");
-    printf("  Input:    %s\n", input_path);
-    printf("  Output:   %s\n", output_path);
-    printf("  Voice:    %s\n", voice_name);
-    printf("  Language: %s\n", lang);
-    printf("  Speed:    %.2f\n\n", speed);
+    printf("  Input:      %s\n", input_path);
+    printf("  Output:     %s\n", output_path);
+    printf("  Voice:      %s\n", voice_name);
+    printf("  Language:   %s\n", lang);
+    printf("  Speed:      %.2f\n", speed);
+    printf("  Auto-pause: %s\n\n", auto_pause ? "enabled" : "disabled");
     
     /* Generate audiobook */
     audio_buffer_t output;
     audio_buffer_init(&output, KOKORO_SAMPLE_RATE);
     
-    if (generate_audiobook(kokoro, input_path, &output, voice_name, lang, speed) != 0) {
+    if (generate_audiobook(kokoro, input_path, &output, voice_name, lang, speed, auto_pause) != 0) {
         audio_buffer_free(&output);
         kokoro_free(kokoro);
         return 1;

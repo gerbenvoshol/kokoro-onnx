@@ -1,4 +1,5 @@
 #include "kokoro.h"
+#include "audio_utils.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -615,6 +616,126 @@ kokoro_error_t kokoro_create_from_phonemes(
     return KOKORO_SUCCESS;
 }
 
+/**
+ * Split phonemes into batches at punctuation marks to avoid exceeding MAX_PHONEME_LENGTH
+ * Returns array of phoneme strings (caller must free each string and array)
+ */
+#define BATCH_BUFFER_PADDING 100  /* Extra buffer space for punctuation and safety margin */
+
+static char** split_phonemes_into_batches(const char* phonemes, size_t* num_batches) {
+    if (!phonemes || !num_batches) {
+        return NULL;
+    }
+    
+    size_t phoneme_len = strlen(phonemes);
+    *num_batches = 0;
+    
+    /* Quick check: if phonemes fit in one batch, return them as-is */
+    if (phoneme_len <= KOKORO_MAX_PHONEME_LENGTH) {
+        char** batches = (char**)malloc(sizeof(char*));
+        if (!batches) return NULL;
+        batches[0] = strdup(phonemes);
+        if (!batches[0]) {
+            free(batches);
+            return NULL;
+        }
+        *num_batches = 1;
+        return batches;
+    }
+    
+    /* Allocate array for batches (estimate with +2 for edge cases where punctuation creates extra batches) */
+    size_t max_batches = (phoneme_len / KOKORO_MAX_PHONEME_LENGTH) + 2;
+    char** batches = (char**)malloc(max_batches * sizeof(char*));
+    if (!batches) return NULL;
+    
+    /* Split by punctuation marks */
+    const char* punctuation = ".,!?;";
+    char* phonemes_copy = strdup(phonemes);
+    if (!phonemes_copy) {
+        free(batches);
+        return NULL;
+    }
+    
+    char* current_batch = (char*)malloc(KOKORO_MAX_PHONEME_LENGTH + BATCH_BUFFER_PADDING);
+    if (!current_batch) {
+        free(phonemes_copy);
+        free(batches);
+        return NULL;
+    }
+    current_batch[0] = '\0';
+    size_t current_len = 0;
+    
+    /* Parse phonemes character by character */
+    const char* p = phonemes_copy;
+    const char* word_start = p;
+    
+    while (*p) {
+        /* Check if we're at punctuation or end of string */
+        int is_punct = (strchr(punctuation, *p) != NULL);
+        int is_space = (*p == ' ');
+        
+        if (is_punct || is_space || *(p + 1) == '\0') {
+            /* Extract word/segment */
+            size_t segment_len = p - word_start + (is_punct || *(p + 1) == '\0' ? 1 : 0);
+            
+            /* Check if adding this segment would exceed limit */
+            if (current_len + segment_len + 1 >= KOKORO_MAX_PHONEME_LENGTH && current_len > 0) {
+                /* Save current batch */
+                batches[*num_batches] = strdup(current_batch);
+                if (!batches[*num_batches]) {
+                    /* Cleanup on error */
+                    for (size_t i = 0; i < *num_batches; i++) {
+                        free(batches[i]);
+                    }
+                    free(batches);
+                    free(current_batch);
+                    free(phonemes_copy);
+                    return NULL;
+                }
+                (*num_batches)++;
+                current_batch[0] = '\0';
+                current_len = 0;
+            }
+            
+            /* Add segment to current batch */
+            if (current_len > 0 && !is_punct) {
+                /* Add space separator using direct indexing for efficiency */
+                current_batch[current_len] = ' ';
+                current_batch[current_len + 1] = '\0';
+                current_len++;
+            }
+            /* Use memcpy for efficiency instead of strncat */
+            memcpy(current_batch + current_len, word_start, segment_len);
+            current_len += segment_len;
+            current_batch[current_len] = '\0';
+            
+            /* Move to next segment */
+            word_start = p + 1;
+        }
+        
+        p++;
+    }
+    
+    /* Add last batch if not empty */
+    if (current_len > 0) {
+        batches[*num_batches] = strdup(current_batch);
+        if (!batches[*num_batches]) {
+            for (size_t i = 0; i < *num_batches; i++) {
+                free(batches[i]);
+            }
+            free(batches);
+            free(current_batch);
+            free(phonemes_copy);
+            return NULL;
+        }
+        (*num_batches)++;
+    }
+    
+    free(current_batch);
+    free(phonemes_copy);
+    return batches;
+}
+
 kokoro_error_t kokoro_create(
     kokoro_t* kokoro,
     const char* text,
@@ -634,11 +755,118 @@ kokoro_error_t kokoro_create(
         return err;
     }
     
-    /* Generate audio from phonemes */
-    err = kokoro_create_from_phonemes(kokoro, phonemes, voice, speed, audio);
+    /* Split phonemes into batches if needed */
+    size_t num_batches = 0;
+    char** phoneme_batches = split_phonemes_into_batches(phonemes, &num_batches);
     free(phonemes);
     
-    return err;
+    if (!phoneme_batches || num_batches == 0) {
+        return KOKORO_ERROR_OUT_OF_MEMORY;
+    }
+    
+    /* Handle single batch case (most common) */
+    if (num_batches == 1) {
+        err = kokoro_create_from_phonemes(kokoro, phoneme_batches[0], voice, speed, audio);
+        free(phoneme_batches[0]);
+        free(phoneme_batches);
+        
+        /* Apply trimming if audio was generated successfully */
+        if (err == KOKORO_SUCCESS && audio->num_samples > 0) {
+            float* trimmed_samples = (float*)malloc(audio->num_samples * sizeof(float));
+            if (trimmed_samples) {
+                size_t trimmed_size = 0;
+                int trim_result = audio_trim_silence(
+                    audio->samples, audio->num_samples,
+                    trimmed_samples, &trimmed_size,
+                    60.0f, 2048, 512
+                );
+                if (trim_result == 0 && trimmed_size > 0) {
+                    free(audio->samples);
+                    audio->samples = trimmed_samples;
+                    audio->num_samples = trimmed_size;
+                } else {
+                    free(trimmed_samples);
+                }
+            }
+        }
+        
+        return err;
+    }
+    
+    /* Multiple batches: generate and concatenate audio */
+    kokoro_audio_t* batch_audios = (kokoro_audio_t*)calloc(num_batches, sizeof(kokoro_audio_t));
+    if (!batch_audios) {
+        for (size_t i = 0; i < num_batches; i++) {
+            free(phoneme_batches[i]);
+        }
+        free(phoneme_batches);
+        return KOKORO_ERROR_OUT_OF_MEMORY;
+    }
+    
+    /* Generate audio for each batch */
+    size_t total_samples = 0;
+    for (size_t i = 0; i < num_batches; i++) {
+        err = kokoro_create_from_phonemes(kokoro, phoneme_batches[i], voice, speed, &batch_audios[i]);
+        free(phoneme_batches[i]);
+        
+        if (err != KOKORO_SUCCESS) {
+            /* Cleanup on error */
+            for (size_t j = 0; j < i; j++) {
+                kokoro_audio_free(&batch_audios[j]);
+            }
+            free(batch_audios);
+            free(phoneme_batches);
+            return err;
+        }
+        
+        /* Trim each batch for better concatenation */
+        if (batch_audios[i].num_samples > 0) {
+            float* trimmed = (float*)malloc(batch_audios[i].num_samples * sizeof(float));
+            if (trimmed) {
+                size_t trimmed_size = 0;
+                int trim_result = audio_trim_silence(
+                    batch_audios[i].samples, batch_audios[i].num_samples,
+                    trimmed, &trimmed_size,
+                    60.0f, 2048, 512
+                );
+                if (trim_result == 0 && trimmed_size > 0) {
+                    free(batch_audios[i].samples);
+                    batch_audios[i].samples = trimmed;
+                    batch_audios[i].num_samples = trimmed_size;
+                    total_samples += trimmed_size;
+                } else {
+                    free(trimmed);
+                    total_samples += batch_audios[i].num_samples;
+                }
+            } else {
+                total_samples += batch_audios[i].num_samples;
+            }
+        }
+    }
+    free(phoneme_batches);
+    
+    /* Concatenate all batch audios */
+    audio->samples = (float*)malloc(total_samples * sizeof(float));
+    if (!audio->samples) {
+        for (size_t i = 0; i < num_batches; i++) {
+            kokoro_audio_free(&batch_audios[i]);
+        }
+        free(batch_audios);
+        return KOKORO_ERROR_OUT_OF_MEMORY;
+    }
+    
+    audio->num_samples = 0;
+    audio->sample_rate = KOKORO_SAMPLE_RATE;
+    
+    for (size_t i = 0; i < num_batches; i++) {
+        memcpy(audio->samples + audio->num_samples, batch_audios[i].samples, 
+               batch_audios[i].num_samples * sizeof(float));
+        audio->num_samples += batch_audios[i].num_samples;
+        kokoro_audio_free(&batch_audios[i]);
+    }
+    free(batch_audios);
+    
+    return KOKORO_SUCCESS;
 }
 
 kokoro_error_t kokoro_get_voices(
