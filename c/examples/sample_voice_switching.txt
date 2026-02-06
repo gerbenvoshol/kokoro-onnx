@@ -1,0 +1,33 @@
+Example Audiobook with Voice Switching and Pause Controls
+
+This is the narrator speaking with the default voice.
+
+[PAUSE:1000]
+
+[af_bella]Now I'm Bella! I have a different voice. Notice how the voice changed mid-text?
+
+[af_sarah]And now we're back to Sarah's voice. This is perfect for dialogue in stories!
+
+[PAUSE:500]
+
+Here's an example of a conversation:
+
+[af_sarah]"Hello there!" Sarah said cheerfully.
+
+[am_adam]"Good morning," Adam replied with a deep voice.
+
+[af_sky]"Did someone call for me?" Sky chimed in excitedly.
+
+[PAUSE:2000]
+
+Custom pauses work great for dramatic effect. This pause was 2 seconds long.
+
+When automatic pauses are enabled (the default), punctuation adds natural pauses. For example, this sentence has a comma, which adds a brief pause.
+
+This ends with a period. Notice the longer pause?
+
+[PAUSE:1500]
+
+[af_bella]You can combine voice changes with custom pauses for complete control over your audiobook narration!
+
+[af_sarah]The end.
