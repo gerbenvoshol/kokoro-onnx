@@ -28,9 +28,6 @@ struct kokoro_t {
     size_t voice_dim;       /* Dimension of a single voice vector (e.g., 256) */
     int is_2d_embedding;    /* 1 if embedding is 2D (flattened), 0 if 1D */
     
-    /* Vocabulary mapping: phoneme -> token_id */
-    int vocab[256];  /* Simple ASCII/UTF-8 first byte mapping */
-    
     /* espeak-ng initialized flag */
     int espeak_initialized;
     
@@ -53,24 +50,121 @@ static const struct {
     const char* phoneme;
     int token_id;
 } VOCAB_MAP[] = {
-    /* Punctuation and separators */
-    {";", 1}, {":", 2}, {",", 3}, {".", 4}, {"!", 5}, {"?", 6},
-    {"—", 9}, {"…", 10}, {"\"", 11}, {"(", 12}, {")", 13},
-    {""", 14}, {""", 15}, {" ", 16},
-    /* Basic Latin alphabet */
-    {"a", 43}, {"b", 44}, {"c", 45}, {"d", 46}, {"e", 47}, {"f", 48},
-    {"h", 50}, {"i", 51}, {"j", 52}, {"k", 53}, {"l", 54}, {"m", 55},
-    {"n", 56}, {"o", 57}, {"p", 58}, {"q", 59}, {"r", 60}, {"s", 61},
-    {"t", 62}, {"u", 63}, {"v", 64}, {"w", 65}, {"x", 66}, {"y", 67},
+    /* Complete vocabulary from config.json */
+    {";", 1},
+    {":", 2},
+    {",", 3},
+    {".", 4},
+    {"!", 5},
+    {"?", 6},
+    {"—", 9},
+    {"…", 10},
+    {"\"", 11},
+    {"(", 12},
+    {")", 13},
+    {"\xE2\x80\x9C", 14},  /* left double quotation mark */
+    {"\xE2\x80\x9D", 15},  /* right double quotation mark */
+    {" ", 16},
+    {"\xCC\x83", 17},  /* combining tilde */
+    {"ʣ", 18},
+    {"ʥ", 19},
+    {"ʦ", 20},
+    {"ʨ", 21},
+    {"ᵝ", 22},
+    {"ꭧ", 23},
+    {"A", 24},
+    {"I", 25},
+    {"O", 31},
+    {"Q", 33},
+    {"S", 35},
+    {"T", 36},
+    {"W", 39},
+    {"Y", 41},
+    {"ᵊ", 42},
+    {"a", 43},
+    {"b", 44},
+    {"c", 45},
+    {"d", 46},
+    {"e", 47},
+    {"f", 48},
+    {"h", 50},
+    {"i", 51},
+    {"j", 52},
+    {"k", 53},
+    {"l", 54},
+    {"m", 55},
+    {"n", 56},
+    {"o", 57},
+    {"p", 58},
+    {"q", 59},
+    {"r", 60},
+    {"s", 61},
+    {"t", 62},
+    {"u", 63},
+    {"v", 64},
+    {"w", 65},
+    {"x", 66},
+    {"y", 67},
     {"z", 68},
-    /* IPA vowels */
-    {"ɑ", 69}, {"ɐ", 70}, {"ɒ", 71}, {"æ", 72}, {"ɔ", 76},
-    {"ə", 83}, {"ɛ", 86}, {"ɜ", 87}, {"ɪ", 102}, {"ʊ", 135}, {"ʌ", 138},
-    /* IPA consonants */
-    {"ð", 81}, {"ɡ", 92}, {"ŋ", 112}, {"ɹ", 123}, {"ʃ", 131},
-    {"ʒ", 147}, {"ʔ", 148},
-    /* IPA modifiers */
-    {"ˈ", 156}, {"ˌ", 157}, {"ː", 158},
+    {"ɑ", 69},
+    {"ɐ", 70},
+    {"ɒ", 71},
+    {"æ", 72},
+    {"β", 75},
+    {"ɔ", 76},
+    {"ɕ", 77},
+    {"ç", 78},
+    {"ɖ", 80},
+    {"ð", 81},
+    {"ʤ", 82},
+    {"ə", 83},
+    {"ɚ", 85},
+    {"ɛ", 86},
+    {"ɜ", 87},
+    {"ɟ", 90},
+    {"ɡ", 92},
+    {"ɥ", 99},
+    {"ɨ", 101},
+    {"ɪ", 102},
+    {"ʝ", 103},
+    {"ɯ", 110},
+    {"ɰ", 111},
+    {"ŋ", 112},
+    {"ɳ", 113},
+    {"ɲ", 114},
+    {"ɴ", 115},
+    {"ø", 116},
+    {"ɸ", 118},
+    {"θ", 119},
+    {"œ", 120},
+    {"ɹ", 123},
+    {"ɾ", 125},
+    {"ɻ", 126},
+    {"ʁ", 128},
+    {"ɽ", 129},
+    {"ʂ", 130},
+    {"ʃ", 131},
+    {"ʈ", 132},
+    {"ʧ", 133},
+    {"ʊ", 135},
+    {"ʋ", 136},
+    {"ʌ", 138},
+    {"ɣ", 139},
+    {"ɤ", 140},
+    {"χ", 142},
+    {"ʎ", 143},
+    {"ʒ", 147},
+    {"ʔ", 148},
+    {"ˈ", 156},
+    {"ˌ", 157},
+    {"ː", 158},
+    {"ʰ", 162},
+    {"ʲ", 164},
+    {"↓", 169},
+    {"→", 171},
+    {"↗", 172},
+    {"↘", 173},
+    {"ᵻ", 177},
     {NULL, 0}
 };
 
@@ -85,21 +179,6 @@ static int check_ort_status(const OrtApi* ort, OrtStatus* status) {
     return 0;
 }
 
-/* Initialize vocabulary mapping */
-static void init_vocab(kokoro_t* kokoro) {
-    /* Initialize all to -1 (not found) */
-    for (int i = 0; i < 256; i++) {
-        kokoro->vocab[i] = -1;
-    }
-    
-    /* Map single-byte characters */
-    for (int i = 0; VOCAB_MAP[i].phoneme != NULL; i++) {
-        if (strlen(VOCAB_MAP[i].phoneme) == 1) {
-            unsigned char c = (unsigned char)VOCAB_MAP[i].phoneme[0];
-            kokoro->vocab[c] = VOCAB_MAP[i].token_id;
-        }
-    }
-}
 
 /* Voice file format constants */
 #define VOICE_FILE_UINT32_SIZE 4
@@ -320,9 +399,6 @@ kokoro_t* kokoro_init(
     kokoro->output_name = strdup(output_name);
     kokoro->ort->AllocatorFree(kokoro->allocator, output_name);
     
-    /* Initialize vocabulary */
-    init_vocab(kokoro);
-    
     /* Load voices */
     kokoro_error_t err = load_voices(kokoro, voices_path);
     if (err != KOKORO_SUCCESS) {
@@ -389,17 +465,37 @@ static float* find_voice_embedding(kokoro_t* kokoro, const char* voice_name) {
     return NULL;
 }
 
+/* Helper function to match UTF-8 phoneme against vocabulary */
+static int match_phoneme(const char* phonemes, size_t* bytes_consumed) {
+    for (int i = 0; VOCAB_MAP[i].phoneme != NULL; i++) {
+        const char* vocab_phoneme = VOCAB_MAP[i].phoneme;
+        size_t len = strlen(vocab_phoneme);
+        
+        if (strncmp(phonemes, vocab_phoneme, len) == 0) {
+            *bytes_consumed = len;
+            return VOCAB_MAP[i].token_id;
+        }
+    }
+    
+    /* No match found */
+    *bytes_consumed = 1;  /* Skip one byte */
+    return -1;
+}
+
 /* Tokenize phonemes */
 static int tokenize_phonemes(kokoro_t* kokoro, const char* phonemes, int64_t* tokens, size_t max_tokens) {
     size_t token_count = 0;
-    const unsigned char* p = (const unsigned char*)phonemes;
+    const char* p = phonemes;
     
     while (*p && token_count < max_tokens) {
-        int token_id = kokoro->vocab[*p];
+        size_t bytes_consumed = 0;
+        int token_id = match_phoneme(p, &bytes_consumed);
+        
         if (token_id >= 0) {
             tokens[token_count++] = token_id;
         }
-        p++;
+        
+        p += bytes_consumed;
     }
     
     return token_count;
@@ -426,15 +522,34 @@ kokoro_error_t kokoro_text_to_phonemes(
         espeak_SetVoiceByProperties(&voice);
     }
     
-    /* Convert text to phonemes */
-    const char* ipa = espeak_TextToPhonemes((const void**)&text, espeakCHARS_UTF8, 
-                                            espeakPHONEMES_IPA | espeakPHONEMES_SHOW);
+    /* Convert text to phonemes - call espeak_TextToPhonemes repeatedly to process all text */
+    char result[4096] = {0};
+    size_t result_len = 0;
+    const char* text_ptr = text;
     
-    if (!ipa) {
+    while (text_ptr && *text_ptr && result_len < sizeof(result) - 256) {
+        const char* ipa = espeak_TextToPhonemes((const void**)&text_ptr, espeakCHARS_UTF8, 
+                                                espeakPHONEMES_IPA);
+        
+        if (!ipa) {
+            break;
+        }
+        
+        /* Append to result */
+        size_t ipa_len = strlen(ipa);
+        if (result_len + ipa_len < sizeof(result)) {
+            strcpy(result + result_len, ipa);
+            result_len += ipa_len;
+        } else {
+            break;
+        }
+    }
+    
+    if (result_len == 0) {
         return KOKORO_ERROR_PHONEMIZE_FAILED;
     }
     
-    *phonemes = strdup(ipa);
+    *phonemes = strdup(result);
     if (!*phonemes) {
         return KOKORO_ERROR_OUT_OF_MEMORY;
     }
