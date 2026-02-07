@@ -13,6 +13,10 @@
 /* Vocabulary size from config.json */
 #define VOCAB_SIZE 178
 
+/* Phoneme buffer size for text-to-phoneme conversion */
+#define MAX_PHONEME_BUFFER_SIZE 4096
+#define PHONEME_BUFFER_SAFETY_MARGIN 256
+
 /* Internal structures */
 struct kokoro_t {
     const OrtApi* ort;
@@ -523,11 +527,11 @@ kokoro_error_t kokoro_text_to_phonemes(
     }
     
     /* Convert text to phonemes - call espeak_TextToPhonemes repeatedly to process all text */
-    char result[4096] = {0};
+    char result[MAX_PHONEME_BUFFER_SIZE] = {0};
     size_t result_len = 0;
     const char* text_ptr = text;
     
-    while (text_ptr && *text_ptr && result_len < sizeof(result) - 256) {
+    while (text_ptr && *text_ptr && result_len < sizeof(result) - PHONEME_BUFFER_SAFETY_MARGIN) {
         const char* ipa = espeak_TextToPhonemes((const void**)&text_ptr, espeakCHARS_UTF8, 
                                                 espeakPHONEMES_IPA);
         
